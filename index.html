@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>냉장고 파먹기 AI - 신선한 식재료 인식 및 맞춤 레시피</title>
+  <!-- 기본 스타일시트 연결 -->
+  <link rel="stylesheet" href="style.css">
+  <!-- 모바일 및 모던 브라우저용 폰트(Pretendard) CDN -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+</head>
+<body>
+  <!-- 전체 애플리케이션 래퍼 -->
+  <div id="app" class="app-container">
+    
+    <!-- 1. 헤더 영역: 브랜드 로고 및 3단계 진행 단계 표시 -->
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="brand">
+          <span class="brand-icon">🧊</span>
+          <h1 class="brand-title">냉장고 AI 레시피</h1>
+        </div>
+        <span class="badge badge-free">무료 AI 모델 적용</span>
+      </div>
+
+      <!-- 진행 단계(스텝) 인디케이터 -->
+      <nav class="step-indicator" aria-label="진행 단계">
+        <div class="step-item active" data-step="1">
+          <span class="step-number">1</span>
+          <span class="step-label">재료 인식</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step-item" data-step="2">
+          <span class="step-number">2</span>
+          <span class="step-label">레시피 추천</span>
+        </div>
+        <div class="step-line"></div>
+        <div class="step-item" data-step="3">
+          <span class="step-number">3</span>
+          <span class="step-label">보관함</span>
+        </div>
+      </nav>
+    </header>
+
+    <!-- 2. 메인 콘텐츠 영역 -->
+    <main class="main-content">
+      
+      <!-- [1단계 섹션] 냉장고 사진 업로드 및 식재료 인식 -->
+      <section id="step1-section" class="step-section">
+        <!-- 섹션 타이틀 및 가이드 -->
+        <div class="section-intro">
+          <h2 class="section-title">냉장고 속 재료를 보여주세요</h2>
+          <p class="section-desc">
+            사진을 찍거나 업로드하면 AI가 냉장고 안의 식재료를 자동으로 찾아냅니다.
+          </p>
+        </div>
+
+        <!-- 이미지 업로드 카드 영역 -->
+        <div class="card upload-card">
+          <!-- 실제 파일 인풋 (화면에는 숨김) -->
+          <input 
+            type="file" 
+            id="image-input" 
+            accept="image/*" 
+            capture="environment" 
+            class="visually-hidden"
+          >
+
+          <!-- 드래그 & 드롭 및 클릭 선택 영역 -->
+          <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="이미지 업로드 영역">
+            <div class="dropzone-content">
+              <div class="dropzone-icon">📷</div>
+              <p class="dropzone-title">사진을 촬영하거나 여기로 드래그하세요</p>
+              <p class="dropzone-sub">스마트폰 카메라 또는 사진 파일 (JPG, PNG, WebP)</p>
+              <button type="button" id="btn-select-file" class="btn btn-secondary">
+                사진 선택하기
+              </button>
+            </div>
+          </div>
+
+          <!-- 이미지 미리보기 영역 (업로드 시 활성화) -->
+          <div id="preview-container" class="preview-container hidden">
+            <div class="preview-image-wrapper">
+              <img id="preview-image" src="" alt="냉장고 사진 미리보기">
+              <button type="button" id="btn-remove-image" class="btn-icon btn-remove" title="사진 삭제" aria-label="사진 삭제">
+                ✕
+              </button>
+            </div>
+            <!-- 이미지 메타 정보 (용량, 해상도 등) -->
+            <div class="preview-meta">
+              <span id="preview-filename" class="preview-filename">파일명.jpg</span>
+              <span id="preview-filesize" class="preview-filesize">0 KB (압축 완료)</span>
+            </div>
+          </div>
+
+          <!-- 식재료 분석 실행 액션 버튼 -->
+          <div class="action-buttons">
+            <button type="button" id="btn-analyze" class="btn btn-primary btn-block" disabled>
+              식재료 분석 시작하기
+            </button>
+          </div>
+        </div>
+
+        <!-- AI 분석 진행 상태 표시 (스켈레톤 / 로딩) -->
+        <div id="analysis-loading" class="card loading-card hidden">
+          <div class="spinner"></div>
+          <p class="loading-title">AI가 냉장고 속 재료를 꼼꼼히 살피고 있어요</p>
+          <p id="loading-tip" class="loading-tip">구석에 숨은 양념과 채소를 분류하는 중입니다...</p>
+        </div>
+
+        <!-- 식재료 분석 결과 영역 (초기에는 숨김) -->
+        <div id="result-container" class="card result-card hidden">
+          <div class="result-header">
+            <h3 class="result-title">인식된 식재료 목록</h3>
+            <span id="ingredient-count" class="badge badge-count">0개 발견</span>
+          </div>
+          <p class="result-guide">
+            누락된 재료는 추가하고, 잘못 인식된 재료는 삭제해 주세요.
+          </p>
+
+          <!-- 식재료 칩(태그) 목록 렌더링 컨테이너 -->
+          <div id="ingredient-tags" class="ingredient-tags">
+            <!-- 자바스크립트로 동적 렌더링될 태그 영역 -->
+          </div>
+
+          <!-- 식재료 수동 직접 추가 인풋 폼 -->
+          <form id="form-add-ingredient" class="add-ingredient-form">
+            <input 
+              type="text" 
+              id="input-ingredient-name" 
+              class="input-text" 
+              placeholder="예: 양파, 계란, 두부 직접 입력" 
+              maxlength="20"
+              autocomplete="off"
+            >
+            <button type="submit" class="btn btn-secondary btn-sm">추가</button>
+          </form>
+
+          <!-- 2단계 이동 버튼 -->
+          <div class="action-buttons">
+            <button type="button" id="btn-go-to-step2" class="btn btn-success btn-block">
+              이 재료로 맞춤 레시피 추천받기 →
+            </button>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- [2단계 섹션: 레시피 추천 및 조리 조건 필터] -->
+      <section id="step2-section" class="step-section hidden">
+        <!-- 섹션 인트로 -->
+        <div class="section-intro">
+          <div class="section-badge-row">
+            <button type="button" id="btn-back-to-step1" class="btn-text">← 재료 다시 선택</button>
+          </div>
+          <h2 class="section-title">어떤 요리를 만들고 싶으세요?</h2>
+          <p class="section-desc">
+            선택된 재료와 원하는 조리 조건을 바탕으로 AI가 최적의 레시피를 제안합니다.
+          </p>
+        </div>
+
+        <!-- 1단계에서 선택된 보유 재료 요약 카드 -->
+        <div class="card selected-ingredients-card">
+          <div class="card-subtitle-row">
+            <span class="card-subtitle">선택된 나의 냉장고 재료</span>
+            <span id="selected-ingredients-count" class="badge badge-count">4개 선택됨</span>
+          </div>
+          <div id="selected-ingredients-summary" class="summary-chips">
+            <!-- 1단계에서 인계받거나 기본 설정된 식재료 태그들 -->
+            <span class="chip chip-ingredient">계란</span>
+            <span class="chip chip-ingredient">대파</span>
+            <span class="chip chip-ingredient">김치</span>
+            <span class="chip chip-ingredient">두부</span>
+          </div>
+        </div>
+
+        <!-- 필터 및 조건 설정 카드 -->
+        <div class="card filter-card">
+          <h3 class="filter-card-title">조리 조건 & 기본 양념 선택</h3>
+
+          <!-- 1. 요리 스타일 필터 -->
+          <div class="filter-group">
+            <label class="filter-label">요리 종류</label>
+            <div class="chip-group" id="filter-cuisine">
+              <button type="button" class="filter-chip active" data-value="all">전체</button>
+              <button type="button" class="filter-chip" data-value="korean">한식</button>
+              <button type="button" class="filter-chip" data-value="western">양식</button>
+              <button type="button" class="filter-chip" data-value="asian">중식/일식</button>
+              <button type="button" class="filter-chip" data-value="snack">간편식/야식</button>
+              <button type="button" class="filter-chip" data-value="diet">다이어트</button>
+            </div>
+          </div>
+
+          <!-- 2. 조리 시간 필터 -->
+          <div class="filter-group">
+            <label class="filter-label">최대 조리 시간</label>
+            <div class="chip-group" id="filter-time">
+              <button type="button" class="filter-chip active" data-value="any">상관없음</button>
+              <button type="button" class="filter-chip" data-value="15">15분 이내 (초간단)</button>
+              <button type="button" class="filter-chip" data-value="30">30분 이내</button>
+              <button type="button" class="filter-chip" data-value="60">1시간 이내</button>
+            </div>
+          </div>
+
+          <!-- 3. 난이도 필터 -->
+          <div class="filter-group">
+            <label class="filter-label">난이도</label>
+            <div class="chip-group" id="filter-difficulty">
+              <button type="button" class="filter-chip active" data-value="any">전체</button>
+              <button type="button" class="filter-chip" data-value="easy">초보 (쉬움)</button>
+              <button type="button" class="filter-chip" data-value="medium">중급 (보통)</button>
+            </div>
+          </div>
+
+          <!-- 4. 주방 기본 구비 양념 체크박스 (다중 선택) -->
+          <div class="filter-group">
+            <div class="filter-label-row">
+              <label class="filter-label">집에 있는 기본 양념</label>
+              <span class="filter-hint">보유 중인 양념을 선택해 주세요 (다중 선택 가능)</span>
+            </div>
+            <div class="seasoning-grid" id="seasoning-selector">
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="소금" checked>
+                <span class="seasoning-chip">🧂 소금</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="설탕" checked>
+                <span class="seasoning-chip">🍬 설탕</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="간장" checked>
+                <span class="seasoning-chip">🥢 진간장</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="식용유" checked>
+                <span class="seasoning-chip">🍳 식용유</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="고춧가루" checked>
+                <span class="seasoning-chip">🌶️ 고춧가루</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="다진마늘">
+                <span class="seasoning-chip">🧄 다진마늘</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="참기름">
+                <span class="seasoning-chip">🍶 참기름</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="후추">
+                <span class="seasoning-chip">🧂 후추</span>
+              </label>
+              <label class="seasoning-checkbox-label">
+                <input type="checkbox" name="seasoning" value="고추장/된장">
+                <span class="seasoning-chip">🍲 고추장/된장</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 레시피 생성 요청 액션 버튼 -->
+          <div class="action-buttons">
+            <button type="button" id="btn-generate-recipes" class="btn btn-primary btn-block">
+              ✨ AI 맞춤 레시피 3개 생성하기
+            </button>
+          </div>
+        </div>
+
+        <!-- 2단계: 레시피 생성 진행 상태 로딩 카드 (초기 숨김) -->
+        <div id="recipe-generation-loading" class="card loading-card hidden">
+          <div class="spinner"></div>
+          <p class="loading-title">셰프 AI가 맞춤형 요리 레시피를 구상 중입니다</p>
+          <p class="loading-tip">보유한 식재료의 조합과 최적의 조리 순서를 계산하고 있어요...</p>
+        </div>
+
+        <!-- 2단계: 추천 레시피 카드 목록 영역 (2-3단계에서 렌더링 예정) -->
+        <div id="recipe-results-container" class="recipe-results-container hidden">
+          <!-- 레시피 카드들이 동적으로 렌더링될 영역 -->
+        </div>
+
+      </section>
+
+      <!-- [3단계 섹션: 사용자 프로필 및 레시피 보관함] -->
+      <section id="step3-section" class="step-section hidden">
+        <!-- 섹션 인트로 -->
+        <div class="section-intro">
+          <div class="section-badge-row">
+            <button type="button" id="btn-back-to-step2" class="btn-text">← 레시피 추천으로 돌아가기</button>
+          </div>
+          <h2 class="section-title">나만의 요리 프로필 & 보관함</h2>
+          <p class="section-desc">
+            알레르기와 기피 식재료를 등록해두면, AI가 레시피 추천 시 자동으로 제외해 줍니다.
+          </p>
+        </div>
+
+        <!-- 3단계 서브 탭 (프로필 설정 / 저장된 레시피 / 스캔 히스토리) -->
+        <nav class="sub-tab-nav" aria-label="보관함 메뉴">
+          <button type="button" class="sub-tab-btn active" data-tab="profile">⚙️ 프로필 & 취향 설정</button>
+          <button type="button" class="sub-tab-btn" data-tab="saved-recipes">📌 저장한 레시피</button>
+          <button type="button" class="sub-tab-btn" data-tab="scan-history">🕒 스캔 히스토리</button>
+        </nav>
+
+        <!-- 3-1. 프로필 & 식단 취향 설정 탭 컨텐츠 -->
+        <div id="tab-content-profile" class="tab-content active">
+          <form id="form-user-profile" class="card profile-card">
+            <h3 class="filter-card-title">나의 맞춤 요리 프로필</h3>
+
+            <!-- 1. 닉네임 설정 -->
+            <div class="filter-group">
+              <label for="input-profile-nickname" class="filter-label">닉네임</label>
+              <input 
+                type="text" 
+                id="input-profile-nickname" 
+                class="input-text" 
+                value="알뜰 요리사" 
+                maxlength="15"
+                placeholder="닉네임을 입력하세요"
+              >
+            </div>
+
+            <!-- 2. 선호 식단 / 다이어트 목표 -->
+            <div class="filter-group">
+              <label class="filter-label">선호 식단 스타일</label>
+              <div class="chip-group" id="profile-diet-group">
+                <button type="button" class="filter-chip active" data-value="normal">일반식</button>
+                <button type="button" class="filter-chip" data-value="high_protein">고단백/헬스</button>
+                <button type="button" class="filter-chip" data-value="low_carb">저탄수화물(키토)</button>
+                <button type="button" class="filter-chip" data-value="low_salt">저염식</button>
+                <button type="button" class="filter-chip" data-value="vegan">비건/채식</button>
+              </div>
+            </div>
+
+            <!-- 3. 알레르기 식재료 설정 (빨간색 계열 태그) -->
+            <div class="filter-group">
+              <div class="filter-label-row">
+                <label class="filter-label">⚠️ 알레르기 유발 식재료 (필수 제외)</label>
+                <span class="filter-hint">등록된 재료는 AI 레시피 추천 시 절대 포함되지 않습니다.</span>
+              </div>
+
+              <!-- 등록된 알레르기 태그 목록 -->
+              <div id="allergy-tags-container" class="profile-tags-container allergy-container">
+                <!-- 동적으로 칩 렌더링 -->
+              </div>
+
+              <!-- 직접 입력 추가 폼 -->
+              <div class="inline-add-row">
+                <input 
+                  type="text" 
+                  id="input-add-allergy" 
+                  class="input-text" 
+                  placeholder="예: 새우, 땅콩, 복숭아 직접 입력" 
+                  maxlength="15"
+                >
+                <button type="button" id="btn-add-allergy" class="btn btn-secondary btn-sm">추가</button>
+              </div>
+
+              <!-- 빠른 추천 클릭 칩 -->
+              <div class="quick-chips">
+                <span class="quick-label">빠른 선택:</span>
+                <button type="button" class="quick-chip" data-target="allergy" data-name="갑각류(새우/게)">+ 갑각류</button>
+                <button type="button" class="quick-chip" data-target="allergy" data-name="땅콩/견과류">+ 견과류</button>
+                <button type="button" class="quick-chip" data-target="allergy" data-name="유제품/우유">+ 우유</button>
+                <button type="button" class="quick-chip" data-target="allergy" data-name="밀가루/글루텐">+ 밀가루</button>
+              </div>
+            </div>
+
+            <!-- 4. 기피 / 비선호 식재료 설정 (주황색 계열 태그) -->
+            <div class="filter-group">
+              <div class="filter-label-row">
+                <label class="filter-label">🙅‍♂️ 기피/비선호 식재료</label>
+                <span class="filter-hint">싫어하는 재료를 등록하면 AI가 가능하면 피해서 제안합니다.</span>
+              </div>
+
+              <!-- 등록된 기피 식재료 태그 목록 -->
+              <div id="dislike-tags-container" class="profile-tags-container dislike-container">
+                <!-- 동적으로 칩 렌더링 -->
+              </div>
+
+              <!-- 직접 입력 추가 폼 -->
+              <div class="inline-add-row">
+                <input 
+                  type="text" 
+                  id="input-add-dislike" 
+                  class="input-text" 
+                  placeholder="예: 오이, 당근, 가지, 고수 직접 입력" 
+                  maxlength="15"
+                >
+                <button type="button" id="btn-add-dislike" class="btn btn-secondary btn-sm">추가</button>
+              </div>
+
+              <!-- 빠른 추천 클릭 칩 -->
+              <div class="quick-chips">
+                <span class="quick-label">빠른 선택:</span>
+                <button type="button" class="quick-chip" data-target="dislike" data-name="오이">+ 오이</button>
+                <button type="button" class="quick-chip" data-target="dislike" data-name="가지">+ 가지</button>
+                <button type="button" class="quick-chip" data-target="dislike" data-name="고수">+ 고수</button>
+                <button type="button" class="quick-chip" data-target="dislike" data-name="파프리카">+ 파프리카</button>
+              </div>
+            </div>
+
+            <!-- 프로필 저장 액션 버튼 -->
+            <div class="action-buttons">
+              <button type="submit" id="btn-save-profile" class="btn btn-primary btn-block">
+                💾 프로필 설정 로컬 저장하기
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- 3-2. 저장된 레시피 보관함 탭 컨텐츠 (뼈대) -->
+        <div id="tab-content-saved-recipes" class="tab-content hidden">
+          <div class="card empty-card">
+            <div class="empty-icon">📖</div>
+            <p class="empty-title">저장된 레시피가 없습니다</p>
+            <p class="empty-desc">2단계에서 마음에 드는 AI 추천 레시피를 북마크해 보세요!</p>
+          </div>
+        </div>
+
+        <!-- 3-3. 스캔 히스토리 탭 컨텐츠 (뼈대) -->
+        <div id="tab-content-scan-history" class="tab-content hidden">
+          <div class="card empty-card">
+            <div class="empty-icon">📷</div>
+            <p class="empty-title">최근 스캔 기록이 없습니다</p>
+            <p class="empty-desc">1단계에서 냉장고 사진을 촬영하면 자동으로 기록이 누적됩니다.</p>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- 3. 푸터 영역 -->
+    <footer class="app-footer">
+      <p class="footer-text">
+        Google Gemma 4 AI 기반 냉장고 식재료 인식 서비스
+      </p>
+    </footer>
+
+  </div>
+
+  <!-- 메인 스크립트 연결 -->
+  <script src="script.js"></script>
+</body>
+</html>
